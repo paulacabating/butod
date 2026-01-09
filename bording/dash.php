@@ -1,3 +1,63 @@
+<?php
+session_start();
+include "db.php";
+
+// Check if user is logged in
+if (!isset($_SESSION['user_id'])) {
+    header("Location: login.php");
+    exit();
+}
+
+// Fetch statistics from database
+// Total Rooms
+$rooms_query = $conn->query("SELECT COUNT(*) as total_rooms FROM rooms");
+$total_rooms = $rooms_query->fetch_assoc()['total_rooms'];
+
+// Occupied Rooms
+$occupied_query = $conn->query("SELECT COUNT(*) as occupied_rooms FROM rooms WHERE status = 'Occupied'");
+$occupied_rooms = $occupied_query->fetch_assoc()['occupied_rooms'];
+
+// Available Rooms
+$available_query = $conn->query("SELECT COUNT(*) as available_rooms FROM rooms WHERE status = 'Available'");
+$available_rooms = $available_query->fetch_assoc()['available_rooms'];
+
+// Calculate Monthly Income (sum of rent from occupied rooms)
+$income_query = $conn->query("
+    SELECT COALESCE(SUM(r.monthly_rent), 0) as monthly_income 
+    FROM rooms r 
+    WHERE r.status = 'Occupied'
+");
+$monthly_income = $income_query->fetch_assoc()['monthly_income'];
+
+// Pending Payments
+$pending_query = $conn->query("SELECT COUNT(*) as pending_payments FROM payments WHERE remarks LIKE '%pending%' OR remarks IS NULL");
+$pending_payments = $pending_query->fetch_assoc()['pending_payments'];
+
+// Fetch recent payments with tenant and room info
+$recent_payments_query = $conn->query("
+    SELECT 
+        p.payment_id,
+        t.full_name as tenant_name,
+        r.room_number,
+        p.amount,
+        p.payment_date,
+        CASE 
+            WHEN p.remarks LIKE '%paid%' THEN 'Paid'
+            WHEN p.remarks LIKE '%pending%' OR p.remarks IS NULL THEN 'Pending'
+            ELSE 'Unknown'
+        END as status
+    FROM payments p
+    LEFT JOIN tenants t ON p.tenant_id = t.tenant_id
+    LEFT JOIN rooms r ON t.room_id = r.room_id
+    ORDER BY p.payment_date DESC
+    LIMIT 15
+");
+
+$recent_payments = [];
+while ($row = $recent_payments_query->fetch_assoc()) {
+    $recent_payments[] = $row;
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -19,33 +79,35 @@
             <li><a href="mainten.php">Maintenance</a></li>
             <li><a href="reports.php">Reports</a></li>
             <li><a href="settings.php">Settings</a></li>
-            <li class="logout">Logout</li>
+            <li class="logout"><a href="logout.php">Logout</a></li>
         </ul>
     </aside>
 
     <main class="main">
-
         <header class="topbar">
             <h1>Dashboard</h1>
-            <div class="profile">Admin</div>
+            <div class="profile">
+                <?php echo htmlspecialchars($_SESSION['full_name'] ?? 'Admin'); ?>
+                (<?php echo htmlspecialchars($_SESSION['role'] ?? 'Admin'); ?>)
+            </div>
         </header>
 
         <section class="cards">
             <div class="card">
                 <h3>Total Rooms</h3>
-                <p>20</p>
+                <p><?php echo $total_rooms; ?></p>
             </div>
             <div class="card">
                 <h3>Occupied Rooms</h3>
-                <p>15</p>
+                <p><?php echo $occupied_rooms; ?></p>
             </div>
             <div class="card">
                 <h3>Monthly Income</h3>
-                <p>₱45,000</p>
+                <p>₱<?php echo number_format($monthly_income, 2); ?></p>
             </div>
             <div class="card">
                 <h3>Pending Payments</h3>
-                <p>3</p>
+                <p><?php echo $pending_payments; ?></p>
             </div>
         </section>
 
@@ -61,96 +123,22 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <tr>
-                        <td>Juan Dela Cruz</td>
-                        <td>Room 101</td>
-                        <td>₱3,000</td>
-                        <td class="paid">Paid</td>
-                    </tr>
-                    <tr>
-                        <td>Maria Santos</td>
-                        <td>Room 102</td>
-                        <td>₱3,000</td>
-                        <td class="pending">Pending</td>
-                    </tr>
-                     <tr>
-                        <td>James Smith</td>
-                        <td>Room 103</td>
-                        <td>₱3,000</td>
-                        <td class="paid">Paid</td>
-                    </tr>
-                     <tr>
-                        <td>Jane Dell</td>
-                        <td>Room 104</td>
-                        <td>₱3,000</td>
-                        <td class="pending">Pending</td>
-                    </tr>
-                     <tr>
-                        <td>Asher Montarde</td>
-                        <td>Room 105</td>
-                        <td>₱3,000</td>
-                        <td class="paid">Paid</td>
-                    </tr>
-                     <tr>
-                        <td>Mila King</td>
-                        <td>Room 106</td>
-                        <td>₱3,000</td>
-                        <td class="pending">Pending</td>
-                    </tr>
-                     <tr>
-                        <td>Sam Bell</td>
-                        <td>Room 107</td>
-                        <td>₱3,000</td>
-                        <td class="paid">Paid</td>
-                    </tr>  
-                    <tr>
-                        <td>Mika lim</td>
-                        <td>Room 108</td>
-                        <td>₱3,000</td>
-                        <td class="paid">Paid</td>
-                    </tr>
-                     <tr>
-                        <td>Khaiah Arceta </td>
-                        <td>Room 109</td>
-                        <td>₱3,000</td>
-                        <td class="paid">Paid</td>
-                    </tr>
-                     <tr>
-                        <td>Max Chio</td>
-                        <td>Room 110</td>
-                        <td>₱3,000</td>
-                        <td class="paid">Paid</td>
-                    </tr>
-                     <tr>
-                        <td>Ash Nic</td>
-                        <td>Room 111</td>
-                        <td>₱3,000</td>
-                        <td class="pending">Pending</td>
-                    </tr>
-                     <tr>
-                        <td>Arianne Vio</td>
-                        <td>Room 112</td>
-                        <td>₱3,000</td>
-                        <td class="paid">Paid</td>
-                    </tr>
-                     <tr>
-                        <td>Mille Lyn</td>
-                        <td>Room 113</td>
-                        <td>₱3,000</td>
-                        <td class="pending">Pending</td>
-                    </tr>
-                     <tr>
-                        <td> Maria Queen</td>
-                        <td>Room 114</td>
-                        <td>₱3,000</td>
-                        <td class="paid">Paid</td>
-                    </tr> 
-                    <tr>
-                        <td>Khael Medina</td>
-                        <td>Room 115</td>
-                        <td>₱3,000</td>
-                        <td class="paid">Paid</td>
-                    </tr> 
+                    <?php if (count($recent_payments) > 0): ?>
+                        <?php foreach ($recent_payments as $payment): ?>
+                        <tr>
+                            <td><?php echo htmlspecialchars($payment['tenant_name'] ?? 'N/A'); ?></td>
+                            <td><?php echo htmlspecialchars($payment['room_number'] ?? 'N/A'); ?></td>
+                            <td>₱<?php echo number_format($payment['amount'], 2); ?></td>
+                            <td class="<?php echo strtolower($payment['status']); ?>">
+                                <?php echo $payment['status']; ?>
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                    <?php else: ?>
+                        <tr>
+                            <td colspan="4" style="text-align: center;">No payment records found</td>
+                        </tr>
+                    <?php endif; ?>
                 </tbody>
             </table>
         </section>
